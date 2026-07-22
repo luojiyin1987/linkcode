@@ -7,9 +7,14 @@ const process = require('node:process');
 const assert = require('node:assert/strict');
 
 const WIRE_DIR = path.join(__dirname, '..', 'packages', 'foundation', 'schema', 'src', 'wire');
+const PAYLOAD_FILE = path.join(WIRE_DIR, 'payload.ts');
 const OUTPUT = path.join(__dirname, '..', 'docs', 'SCHEMA-INDEX.md');
 
 const RE_KIND_LITERAL = /kind:\s*z\.literal\('([^']+)'\)/;
+const RE_NAMED_IMPORT = /^import \{ (\w+) \} from '(\.\/[^']+)';$/gm;
+const RE_PAYLOAD_VARIANT_ARRAY =
+  /WirePayloadSchema\s*=\s*z\.discriminatedUnion\(\s*'kind',\s*\[([\s\S]*?)\]\s*\);/;
+const RE_VARIANT_SPREAD = /\.\.\.(\w+)\s*,/g;
 const RE_LEADING_STAR = /^\*\s?/;
 const RE_TRAILING_DOC_END = /\s*\*\/$/;
 const RE_LEADING_DOC_START = /^\/\*\*\s*/;
@@ -91,6 +96,45 @@ function parseWireFile(filePath) {
   }
 
   return variants;
+}
+
+/**
+ * Read the files that provide the variants spread into WirePayloadSchema.
+ * @returns {string[]}
+ */
+function getPayloadVariantFiles() {
+  const payload = fs.readFileSync(PAYLOAD_FILE, 'utf-8');
+  const imports = new Map();
+
+  for (const match of payload.matchAll(RE_NAMED_IMPORT)) {
+    const [, identifier, specifier] = match;
+    assert(!imports.has(identifier), 'Duplicate payload variant import: ' + identifier);
+    imports.set(identifier, specifier);
+  }
+
+  const payloadArray = payload.match(RE_PAYLOAD_VARIANT_ARRAY);
+  assert(payloadArray, 'Cannot find the WirePayloadSchema variant array');
+
+  const files = [];
+  const spreadIdentifiers = new Set();
+  for (const match of payloadArray[1].matchAll(RE_VARIANT_SPREAD)) {
+    const identifier = match[1];
+    assert(
+      !spreadIdentifiers.has(identifier),
+      'Duplicate WirePayloadSchema variant spread: ' + identifier,
+    );
+    spreadIdentifiers.add(identifier);
+
+    const specifier = imports.get(identifier);
+    assert(specifier, 'WirePayloadSchema spread has no matching import: ' + identifier);
+
+    const file = path.join(WIRE_DIR, specifier + '.ts');
+    assert(fs.existsSync(file), 'WirePayloadSchema variant file does not exist: ' + file);
+    files.push(file);
+  }
+
+  assert(files.length > 0, 'WirePayloadSchema has no variant spreads');
+  return files;
 }
 
 /**
@@ -232,7 +276,7 @@ function generateMarkdown(variants) {
     '# Wire Schema Index',
     '',
     'Every `WirePayload` variant, sorted by `kind`.',
-    'Generated from `packages/foundation/schema/src/wire/*.ts`.',
+    'Generated from modules spread into `WirePayloadSchema` in `packages/foundation/schema/src/wire/payload.ts`.',
     '',
     '**' +
       sorted.length +
@@ -252,12 +296,20 @@ function generateMarkdown(variants) {
 
 // -- main --
 
-const files = fs
-  .readdirSync(WIRE_DIR)
-  .filter((f) => f.endsWith('.ts') && f !== 'index.ts' && f !== 'message.ts' && f !== 'payload.ts');
+const files = getPayloadVariantFiles();
 
 /** @type {Variant[]} */
-const allVariants = files.flatMap((file) => parseWireFile(path.join(WIRE_DIR, file)));
+const allVariants = files.flatMap(parseWireFile);
+
+const variantsByKind = new Map();
+for (const variant of allVariants) {
+  const previous = variantsByKind.get(variant.kind);
+  assert(
+    !previous,
+    `Duplicate wire kind '${variant.kind}' in ${previous?.file} and ${variant.file}`,
+  );
+  variantsByKind.set(variant.kind, variant);
+}
 
 const markdown = generateMarkdown(allVariants);
 

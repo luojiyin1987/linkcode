@@ -3,7 +3,7 @@
 # Wire Schema Index
 
 Every `WirePayload` variant, sorted by `kind`.
-Generated from `packages/foundation/schema/src/wire/*.ts`.
+Generated from modules spread into `WirePayloadSchema` in `packages/foundation/schema/src/wire/payload.ts`.
 
 **114** message kinds . C->H: 60 . H->C: 54 . C<->H: 0
 

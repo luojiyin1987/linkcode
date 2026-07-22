@@ -150,7 +150,7 @@ pnpm test apps/daemon/src/pty     # just the PTY unit tests
 
 ### CI runs Vitest and process acceptance separately
 
-CI (`.github/workflows/ci.yml`) has six jobs: **typescript** (`format:check`, `lint`, `typecheck`, a debug `linkcode-pty` build, required-sidecar Vitest, then the compiled-daemon process acceptance), **desktop** (unpackaged Electron entry, window-state persistence, plus an unsigned packaged devshell), **webview** (the production bundle in Chromium, followed by the bundled mock entry and wire-compatible mock host), **mobile** (Android and iOS Expo Router production exports), **rust** (`cargo fmt --check`, `clippy`, `test`), and an **All Green** aggregate gate over all five required jobs. `check:ci` still excludes Vitest and app acceptance, so run the applicable commands below before every commit rather than treating any one command as the complete gate. A `tsconfig` that excludes its own test files silently hides test type errors (agent-adapter once hid 6 this way).
+CI (`.github/workflows/ci.yml`) has six jobs: **typescript** (`format:check`, `lint`, `typecheck`, `schema:index:check`, a debug `linkcode-pty` build, required-sidecar Vitest, then the compiled-daemon process acceptance), **desktop** (unpackaged Electron entry, window-state persistence, plus an unsigned packaged devshell), **webview** (the production bundle in Chromium, followed by the bundled mock entry and wire-compatible mock host), **mobile** (Android and iOS Expo Router production exports), **rust** (`cargo fmt --check`, `clippy`, `test`), and an **All Green** aggregate gate over all five required jobs. `check:ci` still excludes Vitest and app acceptance, so run the applicable commands below before every commit rather than treating any one command as the complete gate. A `tsconfig` that excludes its own test files silently hides test type errors (agent-adapter once hid 6 this way).
 
 The daemon acceptance driver is deliberately outside Vitest: it starts `dist/index.js` as an external process with an isolated `HOME`, waits for `runtime.json`, checks the HTTP identity, connects a public `LinkCodeClient` through Socket.IO, reads the migrated native SQLite database, and opens a shell through the real PTY sidecar. Run the same boundary locally with:
 
@@ -362,10 +362,10 @@ cargo test --locked
 
 The Cargo workspace has a single member (`crates/linkcode-pty`), so `-p linkcode-pty`-scoped forms are equivalent today, but match CI to stay correct as the workspace grows.
 
-Before every commit run the full JS check set (exactly what CI's TypeScript job runs), then the tests separately — `check:ci` does **not** include them:
+Before every commit run the full JS check set that CI's TypeScript job runs, then run the tests separately. `check:ci` does **not** include tests:
 
 ```bash
-pnpm check:ci   # = format:check && lint && typecheck
+pnpm check:ci   # = format:check && lint && typecheck && schema:index:check
 pnpm test
 ```
 

@@ -32,7 +32,7 @@ The full runbook — running each surface on its own, the test layout, E2E proce
 Run **both** commands before every commit; the first does not include the second:
 
 ```bash
-pnpm check:ci   # format check (Biome) + lint (ESLint) + typecheck
+pnpm check:ci   # format check (Biome) + lint (ESLint) + typecheck + schema index check
 pnpm test       # vitest
 ```
 
